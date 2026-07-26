@@ -16,9 +16,15 @@ final class SwitcherHostingView<Content: View>: NSHostingView<Content> {
     /// How many pills are currently laid out, needed to hit-test them.
     var pillCount = 0
 
+
+    /// Called for clicks and context menus — unambiguous intent, as opposed to hovering.
+    var onInteraction: (() -> Void)?
+
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func rightMouseDown(with event: NSEvent) {
+        onInteraction?()
         guard let menu = menuProvider?(pillIndex(for: event)) else {
             super.rightMouseDown(with: event)
             return
@@ -28,6 +34,7 @@ final class SwitcherHostingView<Content: View>: NSHostingView<Content> {
 
     /// Ctrl-click is the other conventional way to reach a context menu.
     override func mouseDown(with event: NSEvent) {
+        onInteraction?()
         if event.modifierFlags.contains(.control), let menu = menuProvider?(pillIndex(for: event)) {
             NSMenu.popUpContextMenu(menu, with: event, for: self)
             return

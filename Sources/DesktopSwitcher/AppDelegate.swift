@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hostingView: SwitcherHostingView<SwitcherView>?
     private var frameObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
+    private var fader: IdleFader?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let model = SwitcherModel()
@@ -16,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hostingView = SwitcherHostingView(rootView: SwitcherView(model: model))
         hostingView.menuProvider = { [weak self] pill in self?.buildMenu(for: pill) ?? NSMenu() }
+        hostingView.onInteraction = { [weak self] in self?.fader?.noteInteraction() }
         self.hostingView = hostingView
 
         let panel = FloatingPanel(contentView: hostingView)
@@ -40,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sizeToFit()
         placeInitially()
         panel.orderFrontRegardless()
+        fader = IdleFader(panel: panel)
 
         model.screen = panel.screen
 

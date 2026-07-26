@@ -82,12 +82,15 @@ private struct AddDesktopPill: View {
         Button(action: action) {
             ZStack {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Color.primary.opacity(isHovering ? 0.12 : 0.04))
+                    .fill(Color.primary.opacity(isHovering ? 0.22 : 0.04))
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
                 Image(systemName: "plus")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(isHovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
             }
             .frame(width: size, height: size)
+            .scaleEffect(isHovering ? 1.08 : 1)
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
@@ -112,11 +115,16 @@ private struct DesktopPill: View {
             ZStack {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(fill)
+                // A stroke plus a slight bump survive the idle fade, where a subtle fill
+                // alone gets multiplied down to nothing by the window's alpha.
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(.primary.opacity(isHovering && !isCurrent ? 0.45 : 0), lineWidth: 1.5)
                 Text("\(number)")
                     .font(.system(size: 12, weight: isCurrent ? .semibold : .medium, design: .rounded))
                     .foregroundStyle(isCurrent ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             }
             .frame(width: size, height: size)
+            .scaleEffect(isHovering ? 1.08 : 1)
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
@@ -127,7 +135,7 @@ private struct DesktopPill: View {
 
     private var fill: AnyShapeStyle {
         if isCurrent { return AnyShapeStyle(Color.accentColor) }
-        if isHovering { return AnyShapeStyle(Color.primary.opacity(0.12)) }
+        if isHovering { return AnyShapeStyle(Color.primary.opacity(0.22)) }
         return AnyShapeStyle(Color.primary.opacity(0.06))
     }
 
