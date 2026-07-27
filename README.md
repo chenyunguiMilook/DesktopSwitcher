@@ -3,7 +3,7 @@
 macOS 悬浮小组件，横向列出当前显示器的所有桌面（Space），点击即切换。
 
 ```
-[1] 2  3  4  5  +
+[1] 2  3  4  5  +  |  中
 ```
 
 ## 为什么做这个
@@ -41,9 +41,25 @@ cd DesktopSwitcher && ./build.sh --install
 | 点击末尾 `+` | 新建桌面 |
 | **右键点数字** | 该桌面的菜单：切换到桌面 N / **删除桌面 N** |
 | 右键点背景 | 全局菜单：锁定位置、开机启动、授予权限、重置位置、退出 |
+| 点击最右侧 `中` / `A` | 中英文输入法互切 |
 | 拖动组件背景 | 移动位置，自动记住 |
 
 `⌃` 点击等同右键。橙色小圆点表示尚未获得辅助功能权限；授权后消失。
+
+### 输入法切换
+
+最右侧的按钮显示**当前**输入法（`中` / `A`），点击切到另一边。远程控制时菜单栏又小又卡，
+这个按钮顺带也当状态灯用。不需要的话在右键菜单里关掉「显示输入法切换」。
+
+用的是公开的 `TISSelectInputSource`，不需要任何额外权限。
+
+分类靠输入源自己声明的语言（含 `zh` 前缀即视为中文），不是硬编码 bundle ID，所以第三方输入法也能正确归类。
+
+关键细节：**记住两边各自最后用的那个源**。装了多个中文输入法时（比如同时有拼音和五笔），
+从英文切回来必须回到你真正在用的那个 —— 简单地"选第一个中文源"会把五笔用户切到拼音去。
+菜单栏或快捷键引起的变化也会被 `kTISNotifySelectedKeyboardInputSourceChanged` 通知捕获并同步。
+
+系统里没有可切换的两类输入源时，按钮自动隐藏。
 
 ### 自动淡出
 
@@ -158,12 +174,16 @@ Sources/DesktopSwitcher/
     SpaceSwitcher.swift      Mission Control 空间栏：切换 / 删除 / 新建
   Model/
     SwitcherModel.swift      @Observable 状态，变化时才发布
+    InputSourceModel.swift   输入法状态 + 记住两边各自最后用的源
     SpaceMonitor.swift       通知 + 1.5s 低频轮询
+  Input/
+    InputSourceSwitcher.swift  TIS 封装：枚举 / 读取 / 选择输入源
   UI/
     FloatingPanel.swift      NSPanel：非激活、全 Space 可见、可拖动
     SwitcherView.swift       SwiftUI 胶囊行 + 末尾 "+"
     SwitcherMetrics.swift    布局常量，视图与右键命中测试共用
     SwitcherHostingView.swift  acceptsFirstMouse + 按胶囊分派右键菜单
+    IdleFader.swift          闲置淡出 + 停留唤醒
   Support/
     Preferences.swift        位置持久化、锁定、开机启动
 Tools/cgs-probe.swift        私有 API 可行性探针
@@ -208,6 +228,8 @@ sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "select client, auth
 - 切换到全部 5 个桌面各一次、起点各不相同，`ManagedSpaceID` 与索引一一对应，高亮每次跟随
 - 新建：5 → 6 正确追加；删除：6 → 5 正确移除；往返测试后桌面数还原
 - 右键命中测试 18/18：内边距、胶囊间隙、上下边缘、`+` 区域都正确不命中桌面
+- 输入法切换：五笔 → ABC → **五笔**（不是拼音），验证"记住各自最后用的源"生效；
+  右键菜单开关实时重建面板，宽度 232 → 193 → 232
 - 自动淡出：以 `kCGWindowAlpha` 客观读取，闲置后 1.0 → 0.40；指针进入时**仍保持 0.40**、
   停留约 0.5s 后升到 1.00；指针离开后自行回落到 0.40
 - Mission Control 操作后正常关闭，未残留

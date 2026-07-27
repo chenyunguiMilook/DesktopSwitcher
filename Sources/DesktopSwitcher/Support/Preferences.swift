@@ -11,6 +11,7 @@ enum Preferences {
         static let originY = "panel.origin.y"
         static let hasOrigin = "panel.origin.saved"
         static let locked = "panel.locked"
+        static let showsInputToggle = "panel.showsInputToggle"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -37,6 +38,16 @@ enum Preferences {
     static var isPositionLocked: Bool {
         get { defaults.bool(forKey: Key.locked) }
         set { defaults.set(newValue, forKey: Key.locked) }
+    }
+
+    /// Defaults to on; not everyone juggles two input languages, so the right-click menu
+    /// can hide the button entirely.
+    static var showsInputToggle: Bool {
+        get {
+            if defaults.object(forKey: Key.showsInputToggle) == nil { return true }
+            return defaults.bool(forKey: Key.showsInputToggle)
+        }
+        set { defaults.set(newValue, forKey: Key.showsInputToggle) }
     }
 
     // MARK: - Launch at login

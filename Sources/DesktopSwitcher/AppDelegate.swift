@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var panel: FloatingPanel?
     private var model: SwitcherModel?
+    private var input: InputSourceModel?
     private var hostingView: SwitcherHostingView<SwitcherView>?
     private var frameObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
@@ -15,7 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = SwitcherModel()
         self.model = model
 
-        let hostingView = SwitcherHostingView(rootView: SwitcherView(model: model))
+        let input = InputSourceModel()
+        self.input = input
+
+        let hostingView = SwitcherHostingView(
+            rootView: SwitcherView(model: model,
+                                   input: input,
+                                   showsInputToggle: Preferences.showsInputToggle))
         hostingView.menuProvider = { [weak self] pill in self?.buildMenu(for: pill) ?? NSMenu() }
         hostingView.onInteraction = { [weak self] in self?.fader?.noteInteraction() }
         self.hostingView = hostingView
@@ -125,6 +132,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lock.state = Preferences.isPositionLocked ? .on : .off
         menu.addItem(lock)
 
+        let inputToggle = NSMenuItem(title: "显示输入法切换", action: #selector(toggleInputToggle), keyEquivalent: "")
+        inputToggle.target = self
+        inputToggle.state = Preferences.showsInputToggle ? .on : .off
+        // Nothing to switch between means the button would be dead weight.
+        inputToggle.isEnabled = input?.canToggle ?? false
+        menu.addItem(inputToggle)
+
         let login = NSMenuItem(title: "开机启动", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = Preferences.launchesAtLogin ? .on : .off
@@ -162,6 +176,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleLock() {
         Preferences.isPositionLocked.toggle()
         panel?.isPositionLocked = Preferences.isPositionLocked
+    }
+
+    @objc private func toggleInputToggle() {
+        Preferences.showsInputToggle.toggle()
+        rebuildRootView()
+    }
+
+    /// The visibility flag is a plain value, so the view has to be handed a fresh copy.
+    private func rebuildRootView() {
+        guard let hostingView, let model, let input else { return }
+        hostingView.rootView = SwitcherView(model: model,
+                                            input: input,
+                                            showsInputToggle: Preferences.showsInputToggle)
+        sizeToFit()
     }
 
     @objc private func toggleLaunchAtLogin() {

@@ -5,6 +5,10 @@ import SwiftUI
 struct SwitcherView: View {
 
     @Bindable var model: SwitcherModel
+    @Bindable var input: InputSourceModel
+
+    /// Bound to the right-click menu; hiding it removes the button entirely.
+    var showsInputToggle: Bool
 
     private let pillSize = SwitcherMetrics.pillSize
     private let pillRadius = SwitcherMetrics.pillRadius
@@ -45,6 +49,20 @@ struct SwitcherView: View {
             AddDesktopPill(size: pillSize, radius: pillRadius) {
                 model.addDesktop()
             }
+            if showsInputToggle && input.canToggle {
+                // A hairline keeps the input control from reading as a sixth desktop.
+                Rectangle()
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: 1, height: pillSize - 8)
+                    .padding(.horizontal, 1)
+                InputTogglePill(label: input.label,
+                                isChinese: input.isChinese,
+                                name: input.currentName,
+                                size: pillSize,
+                                radius: pillRadius) {
+                    input.toggle()
+                }
+            }
             if model.needsAccessibility {
                 // One small dot rather than an outline on every pill: the row stays calm
                 // and the hint disappears for good once permission is granted.
@@ -65,6 +83,44 @@ struct SwitcherView: View {
             .foregroundStyle(.secondary)
             .frame(height: pillSize)
             .padding(.horizontal, 6)
+    }
+}
+
+/// Flips between Chinese and Latin input. Shows what is active now, the same way the menu
+/// bar does, so it doubles as a status light — useful over a remote session where the real
+/// menu bar is small and laggy.
+private struct InputTogglePill: View {
+
+    let label: String
+    let isChinese: Bool
+    let name: String
+    let size: CGFloat
+    let radius: CGFloat
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.primary.opacity(isHovering ? 0.22 : 0.06))
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
+                Text(label)
+                    .font(.system(size: isChinese ? 12 : 13,
+                                  weight: .semibold,
+                                  design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+            .frame(width: size, height: size)
+            .scaleEffect(isHovering ? 1.08 : 1)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help("输入法：\(name)（点击切换中/英）")
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .animation(.easeOut(duration: 0.12), value: label)
     }
 }
 
