@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                    showsInputToggle: Preferences.showsInputToggle))
         hostingView.menuProvider = { [weak self] pill in self?.buildMenu(for: pill) ?? NSMenu() }
         hostingView.onInteraction = { [weak self] in self?.fader?.noteInteraction() }
+        hostingView.onActivate = { [weak self] element in self?.activate(element) }
         self.hostingView = hostingView
 
         let panel = FloatingPanel(contentView: hostingView)
@@ -78,7 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let panel, let hostingView else { return }
         let size = hostingView.fittingSize
         guard size.width > 0, size.height > 0 else { return }
-        hostingView.pillCount = model?.display?.spaces.count ?? 0
+        hostingView.desktopCount = model?.display?.spaces.count ?? 0
+        hostingView.showsInputToggle = Preferences.showsInputToggle && (input?.canToggle ?? false)
 
         var frame = panel.frame
         let topLeft = NSPoint(x: frame.minX, y: frame.maxY)
@@ -100,6 +102,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Preferences.savedOrigin = panel.frame.origin
         // Dragging onto another display must swap which display's desktops are shown.
         model?.screen = panel.screen
+    }
+
+    /// AppKit now owns clicking, so route the hit element to the right model call.
+    private func activate(_ element: SwitcherMetrics.Element) {
+        switch element {
+        case .desktop(let index): model?.select(index)
+        case .addDesktop: model?.addDesktop()
+        case .inputToggle: input?.toggle()
+        case .background: break
+        }
     }
 
     // MARK: - Menu

@@ -42,26 +42,20 @@ struct SwitcherView: View {
                     isCurrent: index == display.currentIndex,
                     size: pillSize,
                     radius: pillRadius
-                ) {
-                    model.select(index)
-                }
+                )
             }
-            AddDesktopPill(size: pillSize, radius: pillRadius) {
-                model.addDesktop()
-            }
+            AddDesktopPill(size: pillSize, radius: pillRadius)
             if showsInputToggle && input.canToggle {
                 // A hairline keeps the input control from reading as a sixth desktop.
                 Rectangle()
                     .fill(.primary.opacity(0.15))
-                    .frame(width: 1, height: pillSize - 8)
+                    .frame(width: SwitcherMetrics.dividerWidth - 2, height: pillSize - 8)
                     .padding(.horizontal, 1)
                 InputTogglePill(label: input.label,
                                 isChinese: input.isChinese,
                                 name: input.currentName,
                                 size: pillSize,
-                                radius: pillRadius) {
-                    input.toggle()
-                }
+                                radius: pillRadius)
             }
             if model.needsAccessibility {
                 // One small dot rather than an outline on every pill: the row stays calm
@@ -86,103 +80,34 @@ struct SwitcherView: View {
     }
 }
 
-/// Flips between Chinese and Latin input. Shows what is active now, the same way the menu
-/// bar does, so it doubles as a status light — useful over a remote session where the real
-/// menu bar is small and laggy.
-private struct InputTogglePill: View {
+// The pills below are plain visuals, not Buttons: SwitcherHostingView intercepts mouse-down
+// so a press can become a window drag, and dispatches the click itself when it does not.
+// They still take part in hover, which only needs mouse-moved events.
 
-    let label: String
-    let isChinese: Bool
-    let name: String
-    let size: CGFloat
-    let radius: CGFloat
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Color.primary.opacity(isHovering ? 0.22 : 0.06))
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
-                Text(label)
-                    .font(.system(size: isChinese ? 12 : 13,
-                                  weight: .semibold,
-                                  design: .rounded))
-                    .foregroundStyle(.primary)
-            }
-            .frame(width: size, height: size)
-            .scaleEffect(isHovering ? 1.08 : 1)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .help("输入法：\(name)（点击切换中/英）")
-        .animation(.easeOut(duration: 0.12), value: isHovering)
-        .animation(.easeOut(duration: 0.12), value: label)
-    }
-}
-
-/// Trailing "+" that creates a desktop. Styled a notch quieter than the numbers so the
-/// row still reads as a list of desktops first.
-private struct AddDesktopPill: View {
-
-    let size: CGFloat
-    let radius: CGFloat
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Color.primary.opacity(isHovering ? 0.22 : 0.04))
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
-                Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(isHovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-            }
-            .frame(width: size, height: size)
-            .scaleEffect(isHovering ? 1.08 : 1)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .help("添加桌面")
-        .animation(.easeOut(duration: 0.12), value: isHovering)
-    }
-}
-
-/// A single desktop button.
+/// A single desktop.
 private struct DesktopPill: View {
 
     let number: Int
     let isCurrent: Bool
     let size: CGFloat
     let radius: CGFloat
-    let action: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(fill)
-                // A stroke plus a slight bump survive the idle fade, where a subtle fill
-                // alone gets multiplied down to nothing by the window's alpha.
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(.primary.opacity(isHovering && !isCurrent ? 0.45 : 0), lineWidth: 1.5)
-                Text("\(number)")
-                    .font(.system(size: 12, weight: isCurrent ? .semibold : .medium, design: .rounded))
-                    .foregroundStyle(isCurrent ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-            }
-            .frame(width: size, height: size)
-            .scaleEffect(isHovering ? 1.08 : 1)
+        ZStack {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(fill)
+            // A stroke plus a slight bump survive the idle fade, where a subtle fill alone
+            // gets multiplied down to nothing by the window's alpha.
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(.primary.opacity(isHovering && !isCurrent ? 0.45 : 0), lineWidth: 1.5)
+            Text("\(number)")
+                .font(.system(size: 12, weight: isCurrent ? .semibold : .medium, design: .rounded))
+                .foregroundStyle(isCurrent ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
         }
-        .buttonStyle(.plain)
+        .frame(width: size, height: size)
+        .scaleEffect(isHovering ? 1.08 : 1)
         .onHover { isHovering = $0 }
         .help("桌面 \(number)")
         .animation(.easeOut(duration: 0.12), value: isCurrent)
@@ -194,5 +119,63 @@ private struct DesktopPill: View {
         if isHovering { return AnyShapeStyle(Color.primary.opacity(0.22)) }
         return AnyShapeStyle(Color.primary.opacity(0.06))
     }
+}
 
+/// Trailing "+" that creates a desktop. Styled a notch quieter than the numbers so the row
+/// still reads as a list of desktops first.
+private struct AddDesktopPill: View {
+
+    let size: CGFloat
+    let radius: CGFloat
+
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.22 : 0.04))
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isHovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(isHovering ? 1.08 : 1)
+        .onHover { isHovering = $0 }
+        .help("添加桌面")
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// Flips between Chinese and Latin input. Shows what is active now, the same way the menu
+/// bar does, so it doubles as a status light — useful over a remote session where the real
+/// menu bar is small and laggy.
+private struct InputTogglePill: View {
+
+    let label: String
+    let isChinese: Bool
+    let name: String
+    let size: CGFloat
+    let radius: CGFloat
+
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color.primary.opacity(isHovering ? 0.22 : 0.06))
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(.primary.opacity(isHovering ? 0.45 : 0), lineWidth: 1.5)
+            Text(label)
+                .font(.system(size: isChinese ? 12 : 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(isHovering ? 1.08 : 1)
+        .onHover { isHovering = $0 }
+        .help("输入法：\(name)（点击切换中/英）")
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .animation(.easeOut(duration: 0.12), value: label)
+    }
 }

@@ -133,11 +133,16 @@ enum SpaceSwitcher {
     // MARK: - Mission Control
 
     /// Toggles Mission Control. It is an ordinary app bundle, so `open` suffices and no
-    /// synthetic keystroke is involved. `-g` keeps it from stealing activation.
+    /// synthetic keystroke is involved.
+    ///
+    /// Deliberately without `-g`: opened in the background it can dismiss itself within
+    /// ~300ms before any press lands, which was measured with several displays attached
+    /// and left the widget flashing Mission Control without ever switching. Letting it
+    /// activate normally keeps it up.
     private static func toggleMissionControl() {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = ["-g", "-a", missionControlPath]
+        task.arguments = ["-a", missionControlPath]
         try? task.run()
     }
 
@@ -275,36 +280,54 @@ enum SpaceSwitcher {
 
     // MARK: - AX traversal
 
-    /// Every desktop tile currently on screen, left to right, narrowed to the ones
-    /// belonging to `screen` — each display gets its own Spaces bar when "Displays have
-    /// separate Spaces" is on.
+    /// The desktop tiles belonging to `screen`, left to right.
+    ///
+    /// Each display gets its own Spaces bar, so the tiles are grouped by the bar that owns
+    /// them and the bar is matched to a display by *its* position. The tiles' own
+    /// coordinates are useless for this — a collapsed bar reports them above the top of the
+    /// screen (y = -32) — but the bar itself sits squarely on its display.
     private static func desktopTiles(in root: AXUIElement, on screen: NSScreen?) -> [AXUIElement] {
-        var tiles: [AXUIElement] = []
-        collectTiles(root, depth: 0, into: &tiles)
+        var bars: [(bar: AXUIElement, tiles: [AXUIElement])] = []
+        collectBars(root, depth: 0, into: &bars)
 
-        guard let screen, tiles.count > 1 else { return tiles }
-        let onScreen = tiles.filter { tile in
-            guard let point = position(of: tile) else { return true }
-            return screenContaining(point) == screen
-        }
-        // Fall back to the unfiltered list when the geometry match looks wrong, e.g. one
-        // Spaces bar shared across displays.
-        return onScreen.isEmpty ? tiles : onScreen
+        guard let first = bars.first else { return [] }
+        guard bars.count > 1, let screen else { return first.tiles }
+
+        return bars.first { belongs($0.bar, to: screen) }?.tiles ?? first.tiles
     }
 
-    private static func collectTiles(_ element: AXUIElement, depth: Int, into tiles: inout [AXUIElement]) {
-        guard depth < 8 else { return }
+    /// Finds each Spaces bar: the element whose direct children are the desktop tiles.
+    private static func collectBars(_ element: AXUIElement, depth: Int,
+                                    into bars: inout [(bar: AXUIElement, tiles: [AXUIElement])]) {
+        guard depth < 9 else { return }
 
-        var actions: CFArray?
-        AXUIElementCopyActionNames(element, &actions)
-        if let names = actions as? [String], names.contains(desktopTileAction) {
-            tiles.append(element)
+        let kids = children(of: element)
+        let tiles = kids.filter { child in
+            var actions: CFArray?
+            AXUIElementCopyActionNames(child, &actions)
+            return ((actions as? [String]) ?? []).contains(desktopTileAction)
+        }
+        if !tiles.isEmpty {
+            bars.append((element, tiles))
             return
         }
-
-        for child in children(of: element) {
-            collectTiles(child, depth: depth + 1, into: &tiles)
+        for child in kids {
+            collectBars(child, depth: depth + 1, into: &bars)
         }
+    }
+
+    /// AX reports positions with a top-left origin anchored on the primary display.
+    private static func belongs(_ bar: AXUIElement, to screen: NSScreen) -> Bool {
+        guard let origin = rawPosition(of: bar),
+              let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero })
+        else { return false }
+
+        let frame = screen.frame
+        let topLeft = CGRect(x: frame.minX,
+                             y: primary.frame.height - frame.maxY,
+                             width: frame.width,
+                             height: frame.height)
+        return topLeft.contains(origin)
     }
 
     /// The add button sits beside the list that holds the tiles, not beside the tiles
@@ -341,21 +364,14 @@ enum SpaceSwitcher {
         return (raw as! AXUIElement)
     }
 
-    /// Top-left of an element, in Cocoa screen coordinates.
-    private static func position(of element: AXUIElement) -> NSPoint? {
+    /// An element's position exactly as AX reports it: top-left origin, primary display.
+    private static func rawPosition(of element: AXUIElement) -> CGPoint? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success,
               let raw = value, CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
 
         var point = CGPoint.zero
         guard AXValueGetValue(raw as! AXValue, .cgPoint, &point) else { return nil }
-
-        // AX reports a top-left origin; flip into Cocoa's bottom-left space.
-        guard let primary = NSScreen.screens.first else { return nil }
-        return NSPoint(x: point.x, y: primary.frame.maxY - point.y)
-    }
-
-    private static func screenContaining(_ point: NSPoint) -> NSScreen? {
-        NSScreen.screens.first { $0.frame.contains(point) }
+        return point
     }
 }
